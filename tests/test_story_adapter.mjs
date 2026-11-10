@@ -22,3 +22,9 @@ test('Story adapter injects key only in bearer header',async()=>{
  assert.equal(req.options.headers.Authorization,'Bearer test-placeholder');
  assert.equal(JSON.stringify(req.options.body).includes('test-placeholder'),false);
 });
+
+
+test('Story adapter exposes selection of supported image families to agent',()=>{
+ const data=createMagicCardsRequest({prompt:'fantasy fairy',image_model:'openai/gpt-image-2.5-flare'});
+ assert.equal(JSON.parse(data.input).image_model,'openai/gpt-image-2.5-flare');
+});

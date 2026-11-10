@@ -5,9 +5,9 @@
  * call the privately deployed model with an owner key meanwhile.
  */
 export const MAGIC_CARDS_MODEL = 'community/fkom13/polli-magic-cards';
-export function createMagicCardsRequest({prompt,headline='Black Friday',subheadline='fée à louer -50%',quality='high',complexity='medium'}={}) {
+export function createMagicCardsRequest({prompt,headline='Black Friday',subheadline='fée à louer -50%',quality='high',complexity='medium',image_model='openai/gpt-image-2.6-sunburst'}={}) {
   if (!prompt || typeof prompt!=='string') throw new Error('prompt is required');
-  return {model:MAGIC_CARDS_MODEL, input:JSON.stringify({prompt,headline,subheadline,quality,complexity}),store:false};
+  return {model:MAGIC_CARDS_MODEL, input:JSON.stringify({prompt,headline,subheadline,quality,complexity,image_model}),store:false};
 }
 export function parseMagicCardsResponse(body) {
   const text=body?.output?.flatMap(x=>x.content||[]).find(x=>x?.type==='output_text')?.text;
