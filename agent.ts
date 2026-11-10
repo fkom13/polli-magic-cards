@@ -91,7 +91,10 @@ export default async function agent({request,mcp}) {
         const {args,count,fps}=argsForGif(task);
         const gifResult=await mcp('ffmpeg','runFfmpeg',{sources:[sheet],args,outputExtension:'gif'});
         const gif=mediaUrl(gifResult);
-        if(!gif) throw new Error('FFmpeg did not return a GIF media URL');
+        if(!gif) {
+            const diagnostic=(gifResult?.content||gifResult?.result?.content||[]).filter(c=>c?.type==='text').map(c=>c.text).join(' | ').slice(0,600);
+            throw new Error('FFmpeg did not return a GIF media URL: '+diagnostic);
+        }
         return response(JSON.stringify({ok:true,kind:'animated_promo_card',gif_url:gif,spritesheet_url:sheet,frames:count,fps,transparent:true,model:MODEL,quality_requested:task.quality,complexity_workflow:task.complexity,producer:'Pollinations image model + Pollinations FFmpeg MCP',billing:'caller own Pollen for image and FFmpeg tool',private_backend_used:false,no_openai_api_key_required:true}));
     } catch (e) {
         return response(JSON.stringify({ok:false,error:String(e?.message||e).slice(0,240),spritesheet_url:sheet||undefined,model:MODEL,no_retry:true,private_backend_used:false}));
