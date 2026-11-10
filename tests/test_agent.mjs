@@ -71,3 +71,29 @@ test('refuses untrusted sprite sheet URLs',async()=>{
  assert.match(result.error,/spritesheet_url/);
  assert.equal(calls.length,0);
 });
+
+
+test('accepts and passes through all four supported GPT Image Flare/Sunburst models', async () => {
+ for (const image_model of ['openai/gpt-image-2.5-flare','openai/gpt-image-2.5-sunburst','openai/gpt-image-2.6-flare','openai/gpt-image-2.6-sunburst']) {
+  const {mcp,calls}=fakeTool();
+  const request=new Request('https://example.invalid/v1/responses',{method:'POST',body:JSON.stringify({input:JSON.stringify({prompt:'A blue fairy',image_model,quality:'medium',complexity:'low'})})});
+  const res=await agent({request,mcp});
+  const data=JSON.parse((await res.json()).output[0].content[0].text);
+  assert.equal(data.ok,true);
+  assert.equal(data.model,image_model);
+  assert.equal(calls[0].args.model,image_model);
+  assert.equal(calls[0].args.quality,'medium');
+  assert.equal(calls[0].args.transparent,true);
+ }
+});
+
+test('rejects unknown models and unsupported quality settings before paid calls',async()=>{
+ for (const options of [{image_model:'unknown/model'},{image_model:'openai/gpt-image-2.6-flare',quality:'max'}]) {
+  const {mcp,calls}=fakeTool();
+  const request=new Request('https://example.invalid/v1/responses',{method:'POST',body:JSON.stringify({input:JSON.stringify({prompt:'test',...options})})});
+  const res=await agent({request,mcp});
+  const data=JSON.parse((await res.json()).output[0].content[0].text);
+  assert.equal(data.ok,false);
+  assert.equal(calls.length,0);
+ }
+});

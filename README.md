@@ -12,6 +12,9 @@ An open-source Pollinations **Code Agent** that makes animated, transparent prom
 - Transparent alpha and sprite-sheet coherence depend on model output; some iterations may need image edits or review. The hosted agent makes **one image call and one FFmpeg call, with no automatic retry**.
 - A managed Pollinations Code Agent registers as a **text model with media links**, not as an image-generation endpoint. Applications such as Story Animator should call its Responses/Chat Completions API or use the Python compositor.
 - `complexity` here is **workflow complexity** (4/6/9 poses), not OpenAI's native `complexity` parameter, which the current Pollinations image gateway may not expose.
+- **Model selection (opt-in):** `image_model` is allowlisted to `openai/gpt-image-2.5-flare`, `openai/gpt-image-2.5-sunburst`, `openai/gpt-image-2.6-flare`, `openai/gpt-image-2.6-sunburst`; default is 2.6 Sunburst. The agent uses the **same transparent sprite-sheet + FFmpeg workflow**, regardless of model, not a native GIF API.
+- Only `quality=low|medium|high` are accepted by the Pollinations MCP. Although the official OpenAI API also offers `xhigh` and `max`, those values must not be passed through or advertised as working in this hosted agent. Native GIF, SVG, native model `complexity`, and exact frame controls are **not yet exposed** by the current Pollinations image MCP.
+
 
 ## Current deployment and public access
 
@@ -31,7 +34,8 @@ Send a user message containing JSON:
   "headline": "Black Friday",
   "subheadline": "fée à louer -50%",
   "quality": "high",
-  "complexity": "medium"
+  "complexity": "medium",
+  "image_model": "openai/gpt-image-2.6-sunburst"
 }
 ```
 

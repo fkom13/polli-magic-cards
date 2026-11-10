@@ -6,7 +6,13 @@
  * A managed code agent is a TEXT model that returns generated media links.
  */
 const AGENT_MODEL = 'fkom13/polli-magic-cards';
-const MODEL = 'openai/gpt-image-2.6-sunburst';
+const DEFAULT_IMAGE_MODEL = 'openai/gpt-image-2.6-sunburst';
+const SUPPORTED_IMAGE_MODELS = new Set([
+    'openai/gpt-image-2.5-flare',
+    'openai/gpt-image-2.5-sunburst',
+    'openai/gpt-image-2.6-flare',
+    'openai/gpt-image-2.6-sunburst',
+]);
 // Public open-licensed Noto Serif (OFL), loaded as input1 by the hosted FFmpeg worker.
 const FONT_URL = 'https://raw.githubusercontent.com/google/fonts/main/ofl/notoserif/NotoSerif%5Bwdth,wght%5D.ttf';
 const MAX_PROMPT = 1600;
@@ -36,7 +42,17 @@ function parseTask(body) {
     const title = valid(data.headline || data.title || 'Black Friday').slice(0, 42) || 'Black Friday';
     const subtitle = valid(data.subheadline || data.subtitle || 'fée à louer -50%').slice(0, 60) || 'fée à louer -50%';
     const complexity = ['low','medium','high'].includes(data.complexity) ? data.complexity : 'medium';
-    const quality = ['low','medium','high'].includes(data.quality) ? data.quality : 'high';
+    // Quality is limited by Pollinations MCP, even though official OpenAI
+    // supports xhigh/max. Never claim to forward an unsupported quality level.
+    if (data.quality !== undefined && !['low','medium','high'].includes(data.quality)) {
+        throw new Error('quality must be low, medium or high for the Pollinations MCP');
+    }
+    const quality = data.quality || 'high';
+    // Model choice is explicit, validated and paid by the caller's Pollinations key.
+    const imageModel = data.image_model || DEFAULT_IMAGE_MODEL;
+    if (!SUPPORTED_IMAGE_MODELS.has(imageModel)) {
+        throw new Error('Unsupported image_model; choose 2.5/2.6 Flare or Sunburst');
+    }
     const modes = {low:{cols:2,rows:2},medium:{cols:2,rows:3},high:{cols:3,rows:3}};
     // Reuse an existing sheet from Pollinations to iterate on effects/typography
     // without rebilling an expensive image model. Never fetch arbitrary URLs.
@@ -45,7 +61,7 @@ function parseTask(body) {
         !/^https:\/\/media\.pollinations\.ai\/[A-Za-z0-9-]{24,96}$/.test(supplied))) {
         throw new Error('spritesheet_url must be a Pollinations media URL');
     }
-    return {prompt,title,subtitle,complexity,quality,spritesheet_url:supplied||'',...modes[complexity]};
+    return {prompt,title,subtitle,complexity,quality,imageModel,spritesheet_url:supplied||'',...modes[complexity]};
 }
 
 function mediaUrl(result) {
@@ -95,7 +111,7 @@ export default async function agent({request,mcp}) {
     let sheet=task.spritesheet_url;
     try {
         if (!sheet) {
-            const imageResult=await mcp('pollinations','generateImage',{prompt:sheetPrompt,model:MODEL,size:`${task.cols*512}x${task.rows*512}`,quality:task.quality,transparent:true,n:1});
+            const imageResult=await mcp('pollinations','generateImage',{prompt:sheetPrompt,model:task.imageModel,size:`${task.cols*512}x${task.rows*512}`,quality:task.quality,transparent:true,n:1});
             sheet=mediaUrl(imageResult);
             if(!sheet) throw new Error('The image model did not return a public media URL');
         }
@@ -106,8 +122,8 @@ export default async function agent({request,mcp}) {
             const diagnostic=(gifResult?.content||gifResult?.result?.content||[]).filter(c=>c?.type==='text').map(c=>c.text).join(' | ').slice(0,600);
             throw new Error('FFmpeg did not return a GIF media URL: '+diagnostic);
         }
-        return response(JSON.stringify({ok:true,kind:'animated_promo_card',gif_url:gif,spritesheet_url:sheet,frames:count,fps,transparent:true,image_reused:Boolean(task.spritesheet_url),model:MODEL,quality_requested:task.quality,complexity_workflow:task.complexity,producer:'Pollinations image model + Pollinations FFmpeg MCP',billing:task.spritesheet_url?'caller own Pollen for FFmpeg tool only':'caller own Pollen for image and FFmpeg tool',private_backend_used:false,no_openai_api_key_required:true}));
+        return response(JSON.stringify({ok:true,kind:'animated_promo_card',gif_url:gif,spritesheet_url:sheet,frames:count,fps,transparent:true,image_reused:Boolean(task.spritesheet_url),model:task.imageModel,quality_requested:task.quality,complexity_workflow:task.complexity,producer:'Pollinations image model + Pollinations FFmpeg MCP',billing:task.spritesheet_url?'caller own Pollen for FFmpeg tool only':'caller own Pollen for image and FFmpeg tool',private_backend_used:false,no_openai_api_key_required:true}));
     } catch (e) {
-        return response(JSON.stringify({ok:false,error:String(e?.message||e).slice(0,240),spritesheet_url:sheet||undefined,model:MODEL,no_retry:true,private_backend_used:false}));
+        return response(JSON.stringify({ok:false,error:String(e?.message||e).slice(0,240),spritesheet_url:sheet||undefined,model:task.imageModel,no_retry:true,private_backend_used:false}));
     }
 }
