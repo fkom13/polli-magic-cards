@@ -7,6 +7,8 @@
  */
 const AGENT_MODEL = 'fkom13/polli-magic-cards';
 const MODEL = 'openai/gpt-image-2.6-sunburst';
+// Public open-licensed Noto Serif (OFL), loaded as input1 by the hosted FFmpeg worker.
+const FONT_URL = 'https://raw.githubusercontent.com/google/fonts/main/ofl/notoserif/NotoSerif%5Bwdth,wght%5D.ttf';
 const MAX_PROMPT = 1600;
 
 function userText(body) {
@@ -68,7 +70,7 @@ function argsForGif(task) {
     const y=`floor((${idx})/${task.cols})*(ih/${task.rows})`;
     const title=ffmpegCaption(task.title);
     const subtitle=ffmpegCaption(task.subtitle);
-    const vf=`[0:v]crop=w=iw/${task.cols}:h=ih/${task.rows}:x='${x}':y='${y}':exact=1,format=rgba,pad=iw:ih+120:0:0:color=black@0,drawbox=x=12:y=ih-118:w=iw-24:h=113:color=0x061735@0.97:t=fill,drawtext=font='DejaVu Serif':text='${title}':fontsize=35:fontcolor=0xffd88b:x=(w-text_w)/2:y=h-107:expansion=none,drawtext=font='DejaVu Serif':text='${subtitle}':fontsize=27:fontcolor=white:x=(w-text_w)/2:y=h-58:expansion=none,split[a][b];[a]palettegen=reserve_transparent=1:stats_mode=full[p];[b][p]paletteuse=alpha_threshold=128[v]`;
+    const vf=`[0:v]crop=w=iw/${task.cols}:h=ih/${task.rows}:x='${x}':y='${y}':exact=1,format=rgba,pad=iw:ih+120:0:0:color=black@0,drawbox=x=12:y=ih-118:w=iw-24:h=113:color=0x061735@0.97:t=fill,drawtext=fontfile=input1:text='${title}':fontsize=35:fontcolor=0xffd88b:x=(w-text_w)/2:y=h-107:expansion=none,drawtext=fontfile=input1:text='${subtitle}':fontsize=27:fontcolor=white:x=(w-text_w)/2:y=h-58:expansion=none,split[a][b];[a]palettegen=reserve_transparent=1:stats_mode=full[p];[b][p]paletteuse=alpha_threshold=128[v]`;
     return {args:['-f','image2','-loop','1','-framerate',String(fps),'-t',String(count/fps),'-i','input0','-filter_complex',vf,'-map','[v]','-frames:v',String(count),'-loop','0'],count,fps};
 }
 
@@ -89,7 +91,7 @@ export default async function agent({request,mcp}) {
         sheet=mediaUrl(imageResult);
         if(!sheet) throw new Error('The image model did not return a public media URL');
         const {args,count,fps}=argsForGif(task);
-        const gifResult=await mcp('ffmpeg','runFfmpeg',{sources:[sheet],args,outputExtension:'gif'});
+        const gifResult=await mcp('ffmpeg','runFfmpeg',{sources:[sheet,FONT_URL],args,outputExtension:'gif'});
         const gif=mediaUrl(gifResult);
         if(!gif) {
             const diagnostic=(gifResult?.content||gifResult?.result?.content||[]).filter(c=>c?.type==='text').map(c=>c.text).join(' | ').slice(0,600);

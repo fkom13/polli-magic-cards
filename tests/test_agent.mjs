@@ -29,7 +29,9 @@ test('generates real media tool calls without private services',async()=>{
  assert.equal(calls[0].args.transparent,true);
  assert.equal(calls[1].server,'ffmpeg');
  assert.equal(calls[1].args.outputExtension,'gif');
- assert.match(calls[1].args.args.join(' '),/drawtext/);
+ assert.equal(calls[1].args.sources.length,2);
+ assert.match(calls[1].args.sources[1], /NotoSerif/);
+ assert.match(calls[1].args.args.join(' '),/drawtext=fontfile=input1/);
  assert.match(calls[1].args.args.join(' '),/palettegen/);
 });
 
