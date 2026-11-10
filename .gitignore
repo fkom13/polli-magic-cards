@@ -1,0 +1,11 @@
+work/
+__pycache__/
+*.py[cod]
+.venv/
+.env*
+!/.env.example
+credentials*
+secrets*
+*.log
+.DS_Store
+node_modules/
