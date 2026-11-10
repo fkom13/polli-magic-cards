@@ -38,7 +38,14 @@ function parseTask(body) {
     const complexity = ['low','medium','high'].includes(data.complexity) ? data.complexity : 'medium';
     const quality = ['low','medium','high'].includes(data.quality) ? data.quality : 'high';
     const modes = {low:{cols:2,rows:2},medium:{cols:2,rows:3},high:{cols:3,rows:3}};
-    return {prompt,title,subtitle,complexity,quality,...modes[complexity]};
+    // Reuse an existing sheet from Pollinations to iterate on effects/typography
+    // without rebilling an expensive image model. Never fetch arbitrary URLs.
+    const supplied = data.spritesheet_url;
+    if (supplied !== undefined && (typeof supplied !== 'string' ||
+        !/^https:\/\/media\.pollinations\.ai\/[A-Za-z0-9-]{24,96}$/.test(supplied))) {
+        throw new Error('spritesheet_url must be a Pollinations media URL');
+    }
+    return {prompt,title,subtitle,complexity,quality,spritesheet_url:supplied||'',...modes[complexity]};
 }
 
 function mediaUrl(result) {
@@ -70,7 +77,7 @@ function argsForGif(task) {
     const y=`floor((${idx})/${task.cols})*(ih/${task.rows})`;
     const title=ffmpegCaption(task.title);
     const subtitle=ffmpegCaption(task.subtitle);
-    const vf=`[0:v]crop=w=iw/${task.cols}:h=ih/${task.rows}:x='${x}':y='${y}':exact=1,format=rgba,pad=iw:ih+120:0:0:color=black@0,drawbox=x=12:y=ih-118:w=iw-24:h=113:color=0x061735@0.97:t=fill,drawtext=fontfile=input1:text='${title}':fontsize=35:fontcolor=0xffd88b:x=(w-text_w)/2:y=h-107:expansion=none,drawtext=fontfile=input1:text='${subtitle}':fontsize=27:fontcolor=white:x=(w-text_w)/2:y=h-58:expansion=none,split[a][b];[a]palettegen=reserve_transparent=1:stats_mode=full[p];[b][p]paletteuse=alpha_threshold=128[v]`;
+    const vf=`[0:v]crop=w=iw/${task.cols}:h=ih/${task.rows}:x='${x}':y='${y}':exact=1,format=rgba,pad=iw:ih+120:0:0:color=black@0,drawbox=x=12:y=ih-118:w=iw-24:h=113:color=0x061735@0.97:t=fill:replace=1,drawtext=fontfile=input1:text='${title}':fontsize=35:fontcolor=0xffd88b:x=(w-text_w)/2:y=h-107:expansion=none,drawtext=fontfile=input1:text='${subtitle}':fontsize=27:fontcolor=white:x=(w-text_w)/2:y=h-58:expansion=none,split[a][b];[a]palettegen=reserve_transparent=1:stats_mode=full[p];[b][p]paletteuse=alpha_threshold=128[v]`;
     return {args:['-f','image2','-loop','1','-framerate',String(fps),'-t',String(count/fps),'-i','input0','-filter_complex',vf,'-map','[v]','-frames:v',String(count),'-loop','0'],count,fps};
 }
 
@@ -82,14 +89,16 @@ function response(text, details={}) {
 export default async function agent({request,mcp}) {
     let task;
     try {task=parseTask(await request.json());}
-    catch {return response(JSON.stringify({ok:false,error:'invalid_request_json'}));}
+    catch (e) {return response(JSON.stringify({ok:false,error:String(e?.message||e).slice(0,150)}));}
     const poses=task.cols*task.rows;
     const sheetPrompt=`Create a premium transparent animation sprite sheet from scratch. ${task.prompt}. Exactly ${task.cols} columns and ${task.rows} rows, ${poses} equal squares, edge-to-edge, no gutters or borders. Each square contains the SAME character, same camera, pose and costume, full figure visible inside the cell. Consistent composition, sequential very subtle motions: blink, head tilt, wings flutter and soft halo twinkles, then return towards first pose. NO TEXT, NO LABELS, NO LOGOS, no scenery, transparent alpha outside the subject. Do not let any figure cross a cell boundary. Highest possible identity continuity. Render the sheet as one image.`;
-    let sheet='';
+    let sheet=task.spritesheet_url;
     try {
-        const imageResult=await mcp('pollinations','generateImage',{prompt:sheetPrompt,model:MODEL,size:`${task.cols*512}x${task.rows*512}`,quality:task.quality,transparent:true,n:1});
-        sheet=mediaUrl(imageResult);
-        if(!sheet) throw new Error('The image model did not return a public media URL');
+        if (!sheet) {
+            const imageResult=await mcp('pollinations','generateImage',{prompt:sheetPrompt,model:MODEL,size:`${task.cols*512}x${task.rows*512}`,quality:task.quality,transparent:true,n:1});
+            sheet=mediaUrl(imageResult);
+            if(!sheet) throw new Error('The image model did not return a public media URL');
+        }
         const {args,count,fps}=argsForGif(task);
         const gifResult=await mcp('ffmpeg','runFfmpeg',{sources:[sheet,FONT_URL],args,outputExtension:'gif'});
         const gif=mediaUrl(gifResult);
@@ -97,7 +106,7 @@ export default async function agent({request,mcp}) {
             const diagnostic=(gifResult?.content||gifResult?.result?.content||[]).filter(c=>c?.type==='text').map(c=>c.text).join(' | ').slice(0,600);
             throw new Error('FFmpeg did not return a GIF media URL: '+diagnostic);
         }
-        return response(JSON.stringify({ok:true,kind:'animated_promo_card',gif_url:gif,spritesheet_url:sheet,frames:count,fps,transparent:true,model:MODEL,quality_requested:task.quality,complexity_workflow:task.complexity,producer:'Pollinations image model + Pollinations FFmpeg MCP',billing:'caller own Pollen for image and FFmpeg tool',private_backend_used:false,no_openai_api_key_required:true}));
+        return response(JSON.stringify({ok:true,kind:'animated_promo_card',gif_url:gif,spritesheet_url:sheet,frames:count,fps,transparent:true,image_reused:Boolean(task.spritesheet_url),model:MODEL,quality_requested:task.quality,complexity_workflow:task.complexity,producer:'Pollinations image model + Pollinations FFmpeg MCP',billing:task.spritesheet_url?'caller own Pollen for FFmpeg tool only':'caller own Pollen for image and FFmpeg tool',private_backend_used:false,no_openai_api_key_required:true}));
     } catch (e) {
         return response(JSON.stringify({ok:false,error:String(e?.message||e).slice(0,240),spritesheet_url:sheet||undefined,model:MODEL,no_retry:true,private_backend_used:false}));
     }

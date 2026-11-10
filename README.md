@@ -46,6 +46,17 @@ curl https://gen.pollinations.ai/v1/responses \
 
 The model's text reply contains a machine-readable JSON string with `gif_url`, `spritesheet_url`, `frames`, `fps`, requested quality and provenance. A local failure still includes the successful spritesheet URL when available.
 
+### Recompose without another image generation
+
+For typography or FFmpeg effects iteration, use an **existing** `spritesheet_url` returned by a previous successful call, and the same `complexity` (grid size):
+
+```json
+{"prompt":"Fairy blue aura","headline":"Black Friday","subheadline":"fée à louer -50%","quality":"high","complexity":"high","spritesheet_url":"https://media.pollinations.ai/<media-id>"}
+```
+
+This invokes **only the hosted FFmpeg MCP**, not `generateImage` again. The sheet URL must point directly to `media.pollinations.ai`, preventing arbitrary network fetches. The agent uses `drawbox:replace=1` to ensure the dark caption plaque is opaque instead of accidentally transparent. This is especially useful when high-quality 3×3 image sheets are expensive; high workflow complexity yields 16 ping-pong GIF frames but **does not** forward a native `complexity` setting to GPT Image 2.6 (unsupported in the current Pollinations image route).
+
+
 For JavaScript integrations (including Story Animator), see [`examples/story-animator-adapter.mjs`](examples/story-animator-adapter.mjs), which validates returned asset URLs, parses the Responses payload, and returns a timeline-friendly asset descriptor.
 
 ## Local compositor

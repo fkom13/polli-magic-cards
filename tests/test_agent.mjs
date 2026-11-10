@@ -44,3 +44,30 @@ test('high complexity requests 9 poses',async()=>{
  assert.equal(r.frames,16);
  assert.equal(calls[0].args.size,'1536x1536');
 });
+
+
+test('reuses an existing trusted sheet for font/animation fixes without new image cost',async()=>{
+ const {mcp,calls}=fakeTool();
+ const spritesheet_url='https://media.pollinations.ai/18ca4970d690fac22c4b81998265455a919d0b796a85838fbc0d78b3c9116647';
+ const request=new Request('https://example.invalid/v1/responses',{method:'POST',body:JSON.stringify({input:JSON.stringify({prompt:'An adult fantasy fairy',headline:'Black Friday',subheadline:'fée à louer -50%',quality:'high',complexity:'high',spritesheet_url})})});
+ const response=await agent({request,mcp});
+ const result=JSON.parse((await response.json()).output[0].content[0].text);
+ assert.equal(result.ok,true);
+ assert.equal(result.image_reused,true);
+ assert.equal(result.spritesheet_url,spritesheet_url);
+ assert.equal(result.frames,16);
+ assert.equal(calls.length,1);
+ assert.equal(calls[0].server,'ffmpeg');
+ assert.equal(calls[0].args.sources[0],spritesheet_url);
+ assert.match(calls[0].args.args.join(' '),/replace=1/);
+});
+
+test('refuses untrusted sprite sheet URLs',async()=>{
+ const {mcp,calls}=fakeTool();
+ const request=new Request('https://example.invalid/v1/responses',{method:'POST',body:JSON.stringify({input:JSON.stringify({prompt:'test',spritesheet_url:'https://bad.example.com/poison.png'})})});
+ const response=await agent({request,mcp});
+ const result=JSON.parse((await response.json()).output[0].content[0].text);
+ assert.equal(result.ok,false);
+ assert.match(result.error,/spritesheet_url/);
+ assert.equal(calls.length,0);
+});
