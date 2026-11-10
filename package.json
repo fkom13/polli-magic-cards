@@ -5,6 +5,6 @@
   "type": "module",
   "description": "Open Pollinations image+FFmpeg animated card Code Agent",
   "scripts": {
-    "test": "node --test tests/test_agent.mjs"
+    "test": "node --test tests/*.mjs"
   }
 }

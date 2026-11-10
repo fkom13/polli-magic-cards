@@ -7,13 +7,21 @@ An open-source Pollinations **Code Agent** that makes animated, transparent prom
 ## Status and limitations
 
 - **Local compositor:** operational. Processes 2×2, 2×3 and 3×3 transparent sprite sheets into GIF, animated WebP, and APNG, adding one typography layer consistently across all frames.
-- **Pollinations-hosted agent:** `agent.ts` orchestrates Pollinations `generateImage` and hosted FFmpeg MCP `runFfmpeg`, returning a GIF URL via the agent's text/Responses interface. GIF outputs are *not* direct native Sunburst GIFs; the agent constructs them from one generated sheet.
+- **Pollinations-hosted agent:** `agent.ts` orchestrates Pollinations `generateImage` and hosted FFmpeg MCP `runFfmpeg`, returning a GIF URL via the agent's text/Responses interface. A complete live hosted GIF was validated on November 10, 2026: [view the 6-frame transparent test](https://media.pollinations.ai/a0216ba8-9989-4c6f-9019-4fcefc893e54). GIF outputs are *not* direct native Sunburst GIFs; the agent constructs them from one generated sheet.
 - The upstream images are still billed by **the caller's own Pollen**, and FFmpeg MCP may incur a small separate billed tool cost. This is **not a free Sunburst model**.
 - Transparent alpha and sprite-sheet coherence depend on model output; some iterations may need image edits or review. The hosted agent makes **one image call and one FFmpeg call, with no automatic retry**.
 - A managed Pollinations Code Agent registers as a **text model with media links**, not as an image-generation endpoint. Applications such as Story Animator should call its Responses/Chat Completions API or use the Python compositor.
 - `complexity` here is **workflow complexity** (4/6/9 poses), not OpenAI's native `complexity` parameter, which the current Pollinations image gateway may not expose.
 
-## Community invocation (after deploying `code-agent.json`)
+## Current deployment and public access
+
+The GitHub source is public and the managed Code Agent is **deployed and working under the owner account** as `community/fkom13/polli-magic-cards`. Pollinations currently keeps this model registration **private**, pending approval of [publisher access request #19471](https://github.com/pollinations/pollinations/issues/19471). Do not describe it as publicly callable until the account receives that permission and visibility is changed to public.
+
+Hosted FFmpeg's Alpine image does not have standard fonts installed. The agent therefore loads the open-licensed Noto Serif font from Google Fonts via the public FFmpeg MCP as `input1`, without bundling a font file. The hosted agent requires access to that public resource.
+
+A live `medium` quality test via the owner key returned a 6-frame 512×632 transparent GIF; the image portion was billed $0.0442 Pollen and FFmpeg usage was rounded to $0.0000 in the usage view. These are historical observed costs, not a fixed quote. A separate local free-first Pruna experiment lives in the owner's private workspace and is **not** published in this repository.
+
+## Community invocation (once publisher approval is granted)
 
 Send a user message containing JSON:
 
@@ -27,16 +35,18 @@ Send a user message containing JSON:
 }
 ```
 
-Call the registered model (for example `fkom13/polli-magic-cards`) with your own Pollinations API key:
+Call the registered model (`community/fkom13/polli-magic-cards`) with your own Pollinations API key (until publication, only the owner's key can call it):
 
 ```bash
 curl https://gen.pollinations.ai/v1/responses \
   -H "Authorization: Bearer $POLLINATIONS_API_KEY" \
   -H 'Content-Type: application/json' \
-  -d '{"model":"fkom13/polli-magic-cards","input":"{\"prompt\":\"A magical blue fairy blinking\",\"headline\":\"Black Friday\",\"subheadline\":\"fée à louer -50%\",\"complexity\":\"medium\"}","store":false}'
+  -d '{"model":"community/fkom13/polli-magic-cards","input":"{\"prompt\":\"A magical blue fairy blinking\",\"headline\":\"Black Friday\",\"subheadline\":\"fée à louer -50%\",\"complexity\":\"medium\"}","store":false}'
 ```
 
 The model's text reply contains a machine-readable JSON string with `gif_url`, `spritesheet_url`, `frames`, `fps`, requested quality and provenance. A local failure still includes the successful spritesheet URL when available.
+
+For JavaScript integrations (including Story Animator), see [`examples/story-animator-adapter.mjs`](examples/story-animator-adapter.mjs), which validates returned asset URLs, parses the Responses payload, and returns a timeline-friendly asset descriptor.
 
 ## Local compositor
 
